@@ -153,14 +153,15 @@ public class CoinbaseProWebSocketTransaction {
         return new CoinbaseProProductBook((long) 0, gdaxOrderBookBids, gdaxOrderBookAsks);
     }
 
-    public CoinbaseProProductTicker toCoinbaseProProductTicker() {
+    public CoinbaseProStreamingProductTicker toCoinbaseProProductTicker() {
         String tickerTime = time;
         if (tickerTime == null) {
             SimpleDateFormat dateFormatGmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
             dateFormatGmt.setTimeZone(TimeZone.getTimeZone("UTC"));
             tickerTime = dateFormatGmt.format(new Date()); //First ticker event doesn't have time!
         }
-        return new CoinbaseProProductTicker(String.valueOf(tradeId), price, lastSize, bestBid, bestAsk, volume24h, tickerTime);
+        return new CoinbaseProStreamingProductTicker(String.valueOf(tradeId), price, lastSize, bestBid, bestAsk,
+                volume24h, tickerTime, side, sequence);
     }
 
     public CoinbaseProProductStats toCoinbaseProProductStats() {

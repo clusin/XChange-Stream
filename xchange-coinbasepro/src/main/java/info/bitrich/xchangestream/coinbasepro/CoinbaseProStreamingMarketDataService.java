@@ -7,12 +7,19 @@ import static org.knowm.xchange.coinbasepro.CoinbaseProAdapters.adaptTradeHistor
 import static org.knowm.xchange.coinbasepro.CoinbaseProAdapters.adaptTrades;
 
 import java.math.BigDecimal;
+import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import info.bitrich.xchangestream.coinbasepro.dto.CoinbaseProStreamingProductTicker;
 import org.knowm.xchange.coinbasepro.dto.marketdata.CoinbaseProProductBook;
 import org.knowm.xchange.coinbasepro.dto.marketdata.CoinbaseProProductTicker;
 import org.knowm.xchange.coinbasepro.dto.marketdata.CoinbaseProTrade;
@@ -78,7 +85,13 @@ public class CoinbaseProStreamingMarketDataService implements StreamingMarketDat
                     }
 
                     CoinbaseProProductBook productBook = s.toCoinbaseProProductBook(bids.get(currencyPair), asks.get(currencyPair), maxDepth);
-                    return adaptOrderBook(productBook, currencyPair);
+
+                    Date date = null;
+                    if (s.getTime() != null) {
+                        date = Date.from(Instant.parse(s.getTime()));
+                    }
+
+                    return adaptOrderBook(productBook, currencyPair, date);
                 });
     }
 
@@ -89,7 +102,11 @@ public class CoinbaseProStreamingMarketDataService implements StreamingMarketDat
      * @param args         optional arguments.
      * @return an Observable of {@link CoinbaseProProductTicker}.
      */
-    public Observable<CoinbaseProProductTicker> getRawTicker(CurrencyPair currencyPair, Object... args) {
+    public Observable<CoinbaseProStreamingProductTicker> getRawTicker(CurrencyPair currencyPair, Object... args) {
+        return rawTicker(currencyPair).map(CoinbaseProWebSocketTransaction::toCoinbaseProProductTicker);
+    }
+
+    private Observable<CoinbaseProWebSocketTransaction> rawTicker(CurrencyPair currencyPair) {
         if (!containsPair(service.getProduct().getTicker(), currencyPair))
             throw new UnsupportedOperationException(String.format("The currency pair %s is not subscribed for ticker", currencyPair));
 
@@ -101,9 +118,8 @@ public class CoinbaseProStreamingMarketDataService implements StreamingMarketDat
                 .map(s -> mapper.readValue(s.toString(), CoinbaseProWebSocketTransaction.class));
 
         return subscribedChannel
-                .filter(message -> !isNullOrEmpty(message.getType()) && message.getType().equals("match") &&
-                        message.getProductId().equals(channelName))
-                .map(CoinbaseProWebSocketTransaction::toCoinbaseProProductTicker);
+                .filter(message -> !isNullOrEmpty(message.getType()) && message.getType().equals("ticker") &&
+                        message.getProductId().equals(channelName));
     }
 
     /**
@@ -117,20 +133,8 @@ public class CoinbaseProStreamingMarketDataService implements StreamingMarketDat
      */
     @Override
     public Observable<Ticker> getTicker(CurrencyPair currencyPair, Object... args) {
-        if (!containsPair(service.getProduct().getTicker(), currencyPair))
-            throw new UnsupportedOperationException(String.format("The currency pair %s is not subscribed for ticker", currencyPair));
-
-        String channelName = currencyPair.base.toString() + "-" + currencyPair.counter.toString();
-
-        final ObjectMapper mapper = StreamingObjectMapperHelper.getObjectMapper();
-
-        Observable<CoinbaseProWebSocketTransaction> subscribedChannel = service.subscribeChannel(channelName)
-                .map(s -> mapper.readValue(s.toString(), CoinbaseProWebSocketTransaction.class));
-
-        return subscribedChannel
-                .filter(message -> !isNullOrEmpty(message.getType()) && message.getType().equals("ticker") &&
-                        message.getProductId().equals(channelName))
-                .map(s -> adaptTicker(s.toCoinbaseProProductTicker(), s.toCoinbaseProProductStats(), currencyPair));
+        return rawTicker(currencyPair).map(s ->
+                adaptTicker(s.toCoinbaseProProductTicker(), s.toCoinbaseProProductStats(), currencyPair));
     }
 
     @Override

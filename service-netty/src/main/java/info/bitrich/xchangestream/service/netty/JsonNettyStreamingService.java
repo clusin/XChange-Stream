@@ -24,7 +24,7 @@ public abstract class JsonNettyStreamingService extends NettyStreamingService<Js
 
     @Override
     public void messageHandler(String message) {
-        LOG.debug("Received message: {}", message);
+        LOG.debug(message);
         JsonNode jsonNode;
 
         // Parse incoming message to JSON
